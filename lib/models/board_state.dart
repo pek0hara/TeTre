@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'tetromino.dart';
 
+enum GameMode { puzzle, ren }
+
 class BoardState extends ChangeNotifier {
   static const int rows = 20;
   static const int cols = 10;
@@ -37,6 +39,17 @@ class BoardState extends ChangeNotifier {
   // 最後のアクション情報（UI表示用）
   String _lastAction = '';
   String get lastAction => _lastAction;
+
+  // ゲームモード
+  GameMode _mode = GameMode.puzzle;
+  GameMode get mode => _mode;
+
+  // Renモード用：最大REN記録
+  int _maxRen = 0;
+  int get maxRen => _maxRen;
+
+  // Renモード用：壁の色
+  static const Color _wallColor = Color(0xFF505050);
 
   BoardState() : _grid = List.generate(rows, (_) => List.filled(cols, null));
 
@@ -218,24 +231,37 @@ class BoardState extends ChangeNotifier {
       }
     }
 
+    // Renモード時は壁を再生成
+    if (_mode == GameMode.ren && lineCount > 0) {
+      _fillWalls();
+    }
+
     // スコア計算
     if (lineCount > 0) {
       _linesCleared += lineCount;
       _ren++;
 
+      // Renモード用：最大REN更新
+      if (_mode == GameMode.ren && _ren > _maxRen) {
+        _maxRen = _ren;
+      }
+
       int points = 0;
       List<String> actions = [];
 
-      // パーフェクトクリア判定
-      bool isPerfectClear = true;
-      for (var y = 0; y < rows; y++) {
-        for (var x = 0; x < cols; x++) {
-          if (_grid[y][x] != null) {
-            isPerfectClear = false;
-            break;
+      // パーフェクトクリア判定（Renモードでは壁があるので常にfalse）
+      bool isPerfectClear = false;
+      if (_mode == GameMode.puzzle) {
+        isPerfectClear = true;
+        for (var y = 0; y < rows; y++) {
+          for (var x = 0; x < cols; x++) {
+            if (_grid[y][x] != null) {
+              isPerfectClear = false;
+              break;
+            }
           }
+          if (!isPerfectClear) break;
         }
-        if (!isPerfectClear) break;
       }
 
       if (isPerfectClear) {
@@ -299,14 +325,19 @@ class BoardState extends ChangeNotifier {
       _score += points;
       _lastAction = actions.join(' ');
 
-      // 40ライン達成でクリア
-      if (_linesCleared >= targetLines) {
+      // 40ライン達成でクリア（Puzzleモードのみ）
+      if (_mode == GameMode.puzzle && _linesCleared >= targetLines) {
         _isCleared = true;
       }
     } else {
       // ライン消去なしでRENリセット
       _ren = 0;
       _lastAction = '';
+
+      // Renモード時はコンボ切れでゲームオーバー
+      if (_mode == GameMode.ren) {
+        _isGameOver = true;
+      }
     }
   }
 
@@ -323,7 +354,70 @@ class BoardState extends ChangeNotifier {
     _isGameOver = false;
     _isCleared = false;
     _lastAction = '';
+    _mode = GameMode.puzzle;
+    _maxRen = 0;
     notifyListeners();
+  }
+
+  // Renモード用：6つの初期パターン
+  // 各パターンは [row, col] のリスト（3セル分）
+  // 列3-6がウェル（中央4列）、列0-2と7-9は壁
+  static const List<List<List<int>>> _renPatterns = [
+    // パターン1: ■■■□
+    [[19, 3], [19, 4], [19, 5]],
+    // パターン2: ■■□□ / ■□□□ (L字左)
+    [[19, 3], [19, 4], [18, 3]],
+    // パターン3: ■■□□ / ■□□□ (逆L字左)
+    [[18, 3], [18, 4], [19, 3]],
+    // パターン4: □□■■ / □□□■ (逆L字右)
+    [[18, 5], [18, 6], [19, 6]],
+    // パターン5: □□■■ / □□□■ (L字右)
+    [[19, 5], [19, 6], [18, 6]],
+    // パターン6: □■■■
+    [[19, 4], [19, 5], [19, 6]],
+  ];
+
+  // Renモード初期化
+  void initRenMode(int patternIndex) {
+    // グリッドをクリア
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        _grid[y][x] = null;
+      }
+    }
+
+    _mode = GameMode.ren;
+    _score = 0;
+    _linesCleared = 0;
+    _ren = 0;
+    _maxRen = 0;
+    _lastWasDifficult = false;
+    _isGameOver = false;
+    _isCleared = false;
+    _lastAction = '';
+
+    // 壁を配置（左3列と右3列）
+    _fillWalls();
+
+    // 初期パターンを配置
+    final pattern = _renPatterns[patternIndex % _renPatterns.length];
+    for (var cell in pattern) {
+      _grid[cell[0]][cell[1]] = _wallColor;
+    }
+
+    notifyListeners();
+  }
+
+  // 壁を埋める（左3列と右3列）
+  void _fillWalls() {
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < 3; x++) {
+        _grid[y][x] = _wallColor;
+      }
+      for (var x = 7; x < cols; x++) {
+        _grid[y][x] = _wallColor;
+      }
+    }
   }
 
   // スナップショット用: グリッドのコピーを取得
@@ -332,7 +426,7 @@ class BoardState extends ChangeNotifier {
   }
 
   // スナップショット用: 状態を復元
-  void restoreState(List<List<Color?>> grid, int score, int linesCleared, int ren, bool lastWasDifficult) {
+  void restoreState(List<List<Color?>> grid, int score, int linesCleared, int ren, bool lastWasDifficult, {GameMode? mode, int? maxRen}) {
     for (var y = 0; y < rows; y++) {
       for (var x = 0; x < cols; x++) {
         _grid[y][x] = grid[y][x];
@@ -342,6 +436,8 @@ class BoardState extends ChangeNotifier {
     _linesCleared = linesCleared;
     _ren = ren;
     _lastWasDifficult = lastWasDifficult;
+    if (mode != null) _mode = mode;
+    if (maxRen != null) _maxRen = maxRen;
     _isGameOver = false;
     _isCleared = false;
     _lastAction = '';

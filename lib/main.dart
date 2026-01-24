@@ -19,6 +19,8 @@ class GameSnapshot {
   final bool canHold;
   final List<Tetromino> nextQueue;
   final List<TetrominoType> bag;
+  final GameMode mode;
+  final int maxRen;
 
   GameSnapshot({
     required this.grid,
@@ -31,6 +33,8 @@ class GameSnapshot {
     required this.canHold,
     required this.nextQueue,
     required this.bag,
+    required this.mode,
+    required this.maxRen,
   });
 }
 
@@ -157,6 +161,8 @@ class _GameScreenState extends State<GameScreen> {
       canHold: _canHold,
       nextQueue: List.from(_nextQueue),
       bag: List.from(_bag),
+      mode: _boardState.mode,
+      maxRen: _boardState.maxRen,
     );
     _undoHistory.add(snapshot);
   }
@@ -173,6 +179,8 @@ class _GameScreenState extends State<GameScreen> {
         snapshot.linesCleared,
         snapshot.ren,
         snapshot.lastWasDifficult,
+        mode: snapshot.mode,
+        maxRen: snapshot.maxRen,
       );
       _currentTetromino = snapshot.currentTetromino;
       _holdTetromino = snapshot.holdTetromino;
@@ -202,9 +210,13 @@ class _GameScreenState extends State<GameScreen> {
     final success = _boardState.place(_currentTetromino, _rotationIndex, startX, startY);
 
     if (success) {
-      // クリア判定
+      // クリア判定（Puzzleモード）
       if (_boardState.isCleared) {
         _showClearDialog();
+      }
+      // ゲームオーバー判定（Renモード：コンボ切れ）
+      else if (_boardState.isGameOver) {
+        _showRenGameOverDialog();
       } else {
         _spawnTetromino();
       }
@@ -247,6 +259,127 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  void _showRenGameOverDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'GAME OVER',
+          style: TextStyle(
+            color: Colors.redAccent,
+            fontWeight: FontWeight.bold,
+            fontSize: 28,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Max REN: ${_boardState.maxRen}',
+              style: const TextStyle(
+                color: Colors.orangeAccent,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Moves: ${_undoHistory.length}',
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startRenMode();
+            },
+            child: const Text('Try Again'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showModeSelectionDialog();
+            },
+            child: const Text('Change Mode'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showModeSelectionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Select Mode',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _resetGame();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text(
+                  '40LINE Practice',
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _startRenMode();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orangeAccent,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text(
+                  'REN Practice',
+                  style: TextStyle(fontSize: 16, color: Colors.black87),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _startRenMode() {
+    final patternIndex = _random.nextInt(6);
+    _boardState.initRenMode(patternIndex);
+    _undoHistory.clear();
+    _initializeQueue();
+  }
+
   void _resetGame() {
     _boardState.reset();
     _undoHistory.clear();
@@ -265,66 +398,125 @@ class _GameScreenState extends State<GameScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // LINES と SCORE
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'LINES: ',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white60,
+                  // モード別ステータス表示
+                  if (_boardState.mode == GameMode.puzzle)
+                    // Puzzleモード: LINES と SCORE
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'LINES: ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white60,
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${_boardState.linesCleared}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blueAccent,
+                            Text(
+                              '${_boardState.linesCleared}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueAccent,
+                              ),
                             ),
-                          ),
-                          Text(
-                            ' / ${BoardState.targetLines}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white60,
+                            Text(
+                              ' / ${BoardState.targetLines}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white60,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          const Text(
-                            'SCORE: ',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white60,
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            const Text(
+                              'SCORE: ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white60,
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${_boardState.score}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.greenAccent,
+                            Text(
+                              '${_boardState.score}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.greenAccent,
+                              ),
                             ),
+                          ],
+                        ),
+                      ],
+                    )
+                  else
+                    // Renモード: REN表示
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orangeAccent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orangeAccent),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
+                          child: Row(
+                            children: [
+                              Text(
+                                '${_boardState.ren}',
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orangeAccent,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'REN',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orangeAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'MAX: ${_boardState.maxRen}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white60,
+                              ),
+                            ),
+                            Text(
+                              'LINES: ${_boardState.linesCleared}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white60,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   // アクション表示
                   if (_boardState.lastAction.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.blueAccent.withOpacity(0.3),
+                        color: _boardState.mode == GameMode.ren
+                            ? Colors.orangeAccent.withOpacity(0.3)
+                            : Colors.blueAccent.withOpacity(0.3),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -336,10 +528,20 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                       ),
                     ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, size: 24),
-                    onPressed: _resetGame,
-                    tooltip: 'Reset Game',
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.menu, size: 24),
+                        onPressed: _showModeSelectionDialog,
+                        tooltip: 'Select Mode',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, size: 24),
+                        onPressed: _boardState.mode == GameMode.ren ? _startRenMode : _resetGame,
+                        tooltip: 'Reset Game',
+                      ),
+                    ],
                   ),
                 ],
               ),
