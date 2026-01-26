@@ -295,6 +295,14 @@ class _GameScreenState extends State<GameScreen> {
           ],
         ),
         actions: [
+          if (_canUndo)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _undo();
+              },
+              child: const Text('Undo'),
+            ),
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
