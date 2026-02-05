@@ -420,6 +420,12 @@ class BoardState extends ChangeNotifier {
     }
   }
 
+  // ブラインドモード用: 壁セルかどうか判定（RENモードの壁と初期パターン）
+  bool isWallCell(int x, int y) {
+    if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
+    return _mode == GameMode.ren && _grid[y][x] == _wallColor;
+  }
+
   // スナップショット用: グリッドのコピーを取得
   List<List<Color?>> getGridCopy() {
     return List.generate(rows, (y) => List.from(_grid[y]));
