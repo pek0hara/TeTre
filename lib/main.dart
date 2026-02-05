@@ -77,6 +77,7 @@ class _GameScreenState extends State<GameScreen> {
   int _rotationIndex = 0;
   final Random _random = Random();
   final List<GameSnapshot> _undoHistory = []; // Undo履歴（無制限）
+  bool _blindMode = false; // ブラインドモード
 
   @override
   void initState() {
@@ -326,56 +327,98 @@ class _GameScreenState extends State<GameScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: const Text(
-          'Select Mode',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'Select Mode',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _resetGame();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  '40LINE Practice',
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _startRenMode();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orangeAccent,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  'REN Practice',
-                  style: TextStyle(fontSize: 16, color: Colors.black87),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _resetGame();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text(
+                    '40LINE Practice',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _startRenMode();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orangeAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text(
+                    'REN Practice',
+                    style: TextStyle(fontSize: 16, color: Colors.black87),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () {
+                  setDialogState(() {
+                    setState(() {
+                      _blindMode = !_blindMode;
+                    });
+                  });
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _blindMode ? Icons.visibility_off : Icons.visibility,
+                      color: _blindMode ? Colors.purpleAccent : Colors.white60,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Blind Mode',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _blindMode ? Colors.purpleAccent : Colors.white60,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _blindMode ? 'ON' : 'OFF',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: _blindMode ? Colors.purpleAccent : Colors.white38,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -540,6 +583,19 @@ class _GameScreenState extends State<GameScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        icon: Icon(
+                          _blindMode ? Icons.visibility_off : Icons.visibility,
+                          size: 24,
+                          color: _blindMode ? Colors.purpleAccent : null,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _blindMode = !_blindMode;
+                          });
+                        },
+                        tooltip: 'Blind Mode',
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.menu, size: 24),
                         onPressed: _showModeSelectionDialog,
                         tooltip: 'Select Mode',
@@ -571,6 +627,7 @@ class _GameScreenState extends State<GameScreen> {
                           currentTetromino: _currentTetromino,
                           rotationIndex: _rotationIndex,
                           onPlace: _onBoardTap,
+                          blindMode: _blindMode,
                         ),
                       ),
                       const SizedBox(width: 8),

@@ -7,6 +7,7 @@ class BoardWidget extends StatefulWidget {
   final Tetromino currentTetromino;
   final int rotationIndex;
   final Function(int x, int y) onPlace;
+  final bool blindMode;
 
   const BoardWidget({
     super.key,
@@ -14,6 +15,7 @@ class BoardWidget extends StatefulWidget {
     required this.currentTetromino,
     required this.rotationIndex,
     required this.onPlace,
+    this.blindMode = false,
   });
 
   @override
@@ -110,6 +112,7 @@ class _BoardWidgetState extends State<BoardWidget> {
                   previewRotationIndex: widget.rotationIndex,
                   previewX: _previewX,
                   previewY: _previewY,
+                  blindMode: widget.blindMode,
                 ),
                 size: Size(constraints.maxWidth, constraints.maxHeight),
               ),
@@ -128,6 +131,7 @@ class _BoardPainter extends CustomPainter {
   final int previewRotationIndex;
   final int? previewX;
   final int? previewY;
+  final bool blindMode;
 
   _BoardPainter({
     required this.boardState,
@@ -136,6 +140,7 @@ class _BoardPainter extends CustomPainter {
     this.previewRotationIndex = 0,
     this.previewX,
     this.previewY,
+    this.blindMode = false,
   });
 
   @override
@@ -185,17 +190,20 @@ class _BoardPainter extends CustomPainter {
           }
           canvas.drawRect(rect.deflate(1.0), paint);
         }
-        // 既存ブロック描画
+        // 既存ブロック描画（ブラインドモード時は壁セルのみ描画）
         else if (color != null) {
-          paint.color = color;
-          canvas.drawRect(rect.deflate(1.0), paint);
+          final shouldDraw = !blindMode || boardState.isWallCell(x, y);
+          if (shouldDraw) {
+            paint.color = color;
+            canvas.drawRect(rect.deflate(1.0), paint);
 
-          // ハイライト（立体感）
-          final highlightPaint = Paint()..color = Colors.white30;
-          canvas.drawRect(
-            Rect.fromLTWH(rect.left + 2, rect.top + 2, cellSize - 4, cellSize / 3),
-            highlightPaint
-          );
+            // ハイライト（立体感）
+            final highlightPaint = Paint()..color = Colors.white30;
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left + 2, rect.top + 2, cellSize - 4, cellSize / 3),
+              highlightPaint
+            );
+          }
         }
       }
     }
